@@ -11,15 +11,17 @@
   - `sudo docker logs logspout`
 - Actualizar el servicio al cual van a apuntar los logs:
   - `dokku logspout:server tcp://2.tcp.ngrok.io:17722`
-
-# Configurar logspout.
+  - dokku logspout:server syslog+tls://logs3.papertrailapp.com:30612,syslog+tcp://0.tcp.sa.ngrok.io:18328
+  
+# Configurar logspout(innecesario).
 - Agregar al archivo `/home/dokku/.logspout/ENV` el siguiente formato para RAW_FORMAT:
   - `RAW_FORMAT={{ printf "@@@{\"Time\": %s, \"Data\": %s, \"Source\": \"%s\", \"Hostname\":\"%s\", \"AppName\":\"%s\"}@@@" (toJSON .Time) (toJSON .Data) .Source .Container.Config.Hostname (index .Container.Config.Labels "com.dokku.app-name") }}`
+  - `SYSLOG_TCP_FRAMING=octet-counted`
 - Reiniciar el contenedor de logspout:
   - `dokku logspout:stop && dokku logspout:start`
 - Revisar logs del plugin logspout.
 
-# Ej. de log.
+# Ej. de log(ahora llega de otra forma).
 ````
 {
     "Time":"2023-12-17T16:54:49.294161642Z",

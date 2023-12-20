@@ -8,14 +8,15 @@ dotenv.config({path: ".env"});
 
 const logger = new Logger("server");
 
-const messageController = new MessageController();
-messageController.listen();
-messageController.processMessages().catch((error) => logger.error(error));
+try {
+	const messageController = new MessageController();
+	messageController.listen();
+	messageController.processMessages().catch((error) => logger.error(error));
 
-process.on("uncaughtException", (error) => {
-	logger.error("Excepción no capturada:", error);
-	// Aquí puedes manejar la excepción y decidir si reiniciar el servidor
-});
+	process.on("uncaughtException", (error) => {
+		logger.error("Excepción no capturada:", error);
+		// Aquí puedes manejar la excepción y decidir si reiniciar el servidor
+	});
 
 // process.on("SIGINT", () => {
 // 	logger.info("Proceso interrumpido. Cerrando servidor...");
@@ -24,4 +25,8 @@ process.on("uncaughtException", (error) => {
 // 		process.exit(0);
 // 	});
 // });
+} catch (error) {
+	logger.error("Core Server", error);
+}
+
 

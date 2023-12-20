@@ -1,11 +1,11 @@
 import net from "net";
 import * as dotenv from "dotenv";
 import * as process from "process";
-import { createClient } from "redis";
 
 import { Logger } from "digevo-logger";
 
-import { insertLog } from "./dbHelper";
+import { LogCache } from "./LogCache";
+import { checkRetries, insertLog, MessageLog } from "./dbHelper";
 
 dotenv.config({path: ".env"});
 
@@ -15,19 +15,6 @@ const TIMEOUT = parseInt(process.env.TIMEOUT || "200");
 
 const logger = new Logger("Message Controller");
 const MESSAGE_QUEUE = "logsMessagesQueue";
-const DELIMITER = "@@@";
-const client = createClient({url: process.env.REDIS_URL});
-let incompleteMessage = "";
-
-/* eslint-disable @typescript-eslint/naming-convention */
-export interface MessageLog {
-	Time: string;
-	Data: string;
-	Source: string;
-	Hostname: string;
-	AppName: string;
-}
-/* eslint-enable @typescript-eslint/naming-convention */
 
 export class MessageController {
 	private server: net.Server;
@@ -60,74 +47,60 @@ export class MessageController {
 		});
 	}
 
-	private cleanData(data: string | Buffer): string {
-		return data.toString().replace(/\u001b\[\d+m/g, "").replace(/(\r\n|\n|\r|\t)/gm, " ");
-	}
-
 	private async sendDataToCache(data: Buffer) {
 		try {
-			// await client.lPush(MESSAGE_QUEUE, this.cleanData(data));
-			client.lPush(MESSAGE_QUEUE, this.cleanData(data));
+			const _data = data.toString();
+			if (_data) {
+				const client = await LogCache.getInstance();
+				client.lPush(MESSAGE_QUEUE, _data);
+			}
 		} catch (error) {
 			logger.error("sendDataToCache", error);
 		}
 	}
 
-	private async ensureRedisConnection(): Promise<void> {
-		if (!client.isReady && !client.isOpen) {
-			try {
-				await client.connect();
-			} catch (error) {
-				logger.error("Error connecting to Redis:", error);
-			}
-		}
-	}
-
 	private async processRedisQueue() {
 		try {
-			let message = await client.rPop(MESSAGE_QUEUE);
-			if (message) {
-				if (incompleteMessage) {
-					message = incompleteMessage + message;
-					incompleteMessage = "";
+			const client = await LogCache.getInstance();
+			const messages = await client.lRange(MESSAGE_QUEUE, 0, 10);
+			if (messages?.length) {
+				await client.lTrim(MESSAGE_QUEUE, messages.length, -1);
+				for (const message of messages) {
+					const syslogJson = this.parseSyslogToJSON(message);
+					if (syslogJson) {
+						this.logToDb(syslogJson);
+					}
 				}
-				// await this.processMessage(message);
-				this.processMessage(message);
 			}
+			// const message = await client.rPop(MESSAGE_QUEUE);
+			// const syslogJson = this.parseSyslogToJSON(message);
+			// if (syslogJson) {
+			// 	this.logToDb(syslogJson);
+			// }
 		} catch (error) {
 			logger.error("Error reading message from Redis:", error);
 		}
 	}
 
-	private async processMessage(message: string) {
-		let startIndex = 0;
-		let endIndex = 0;
-		let lastProcessedIndex = 0;
+	private parseSyslogToJSON(syslogMsg: string) {
+		if (!syslogMsg) return undefined;
 
-		while ((startIndex = message.indexOf(DELIMITER, endIndex)) !== -1) {
-			endIndex = message.indexOf(DELIMITER, startIndex + DELIMITER.length);
-			if (endIndex === -1) {
-				incompleteMessage = message.substring(startIndex);
-				break;
-			}
+		try {
+			const regex = /<\d+>\d+ (\S+) (\S+) (\S+) \d+ - - (.+)/;
+			const match = syslogMsg.match(regex);
 
-			const jsonMessage = message.substring(startIndex + DELIMITER.length, endIndex);
-			try {
-				if (jsonMessage.trim()) {
-					// logger.info(`---------> '${jsonMessage}'`);
-					const jsonData = JSON.parse(jsonMessage);
-					// await this.logToDb(jsonData as MessageLog);
-					this.logToDb(jsonData as MessageLog);
-				}
-			} catch (error) {
-				logger.error(`Invalid JSON('${jsonMessage}'):`, error);
-			}
-
-			lastProcessedIndex = endIndex + DELIMITER.length;
-		}
-
-		if (endIndex === -1 && lastProcessedIndex < message.length) {
-			incompleteMessage = message.substring(lastProcessedIndex);
+			/* eslint-disable @typescript-eslint/naming-convention */
+			return match ? {
+				Time: match[1],
+				Hostname: match[2],
+				AppName: match[3],
+				Data: match[4],
+				Source: ""
+			} : undefined;
+			/* eslint-enable @typescript-eslint/naming-convention */
+		} catch (error) {
+			logger.error("parseSyslogToJSON", error);
+			return undefined;
 		}
 	}
 
@@ -143,11 +116,12 @@ export class MessageController {
 
 	public async processMessages() {
 		try {
-			await this.ensureRedisConnection();
+			await LogCache.getInstance();
 		} catch (error) {
 			logger.error("processMessage", error);
 		}
 
 		setInterval(this.processRedisQueue.bind(this), TIMEOUT);
+		checkRetries();
 	}
 }
