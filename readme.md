@@ -9,7 +9,7 @@
   - `llen logsMessagesQueue`, revisar en la configuración del container el nombre correcto de la cola. 
   - `llen retriesLogsMessagesQueue`, revisar en la configuración del container el nombre correcto de la cola.
 - Construir imagen: 
-  - `sudo docker build -t smartia-logging-server .`
+  - `docker build -t smartia-logging-server .`
 - Ejecutar contenedor con la imagen creado: 
   - `docker run -d -p 8000:8000 --env-file=./.env --name smartia-logging-server --network mi-red smartia-logging-server`
 - Entrar al docker por temas de depuración:
