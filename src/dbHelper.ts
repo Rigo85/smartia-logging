@@ -12,7 +12,7 @@ dotenv.config({path: ".env"});
 const logger = new Logger("DB Helper");
 
 const databaseUrl = process.env.DATABASE_URL;
-const MESSAGE_QUEUE = "retriesLogsMessagesQueue";
+const RETRIES_MESSAGE_QUEUE = process.env.RETRIES_MESSAGE_QUEUE;
 const TIMEOUT = parseInt(process.env.TIMEOUT_RETRIES || "1000");
 
 if (!databaseUrl) {
@@ -56,8 +56,7 @@ export async function insertLog(timestamp: string, data: string, source: string,
 async function retriesProcess(log: MessageLog) {
 	try {
 		const client = await LogCache.getInstance();
-		client.lPush(MESSAGE_QUEUE, JSON.stringify(log));
-
+		client.lPush(RETRIES_MESSAGE_QUEUE, JSON.stringify(log));
 	} catch (error) {
 		logger.error("retriesProcess", error);
 	}
@@ -66,7 +65,7 @@ async function retriesProcess(log: MessageLog) {
 async function processRetriesCache() {
 	try {
 		const client = await LogCache.getInstance();
-		const messageStr = await client.rPop(MESSAGE_QUEUE);
+		const messageStr = await client.rPop(RETRIES_MESSAGE_QUEUE);
 		const message = JSON.parse(messageStr) as MessageLog;
 		if (message) {
 			insertLog(message.Time, message.Data, message.Source, message.Hostname, message.AppName);
