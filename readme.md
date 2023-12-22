@@ -8,9 +8,9 @@
   - `redis-cli`
   - `llen logsMessagesQueue`, revisar en la configuración del container el nombre correcto de la cola. 
   - `llen retriesLogsMessagesQueue`, revisar en la configuración del container el nombre correcto de la cola.
-- Construir imagen (**eliminar/mover el archivo .env** para que no quede dentro de la imagen): 
+- Construir imagen: 
   - `sudo docker build -t smartia-logging-server .`
-- Ejecutar contenedor con la imagen creado (**retornar el archivo .env**): 
+- Ejecutar contenedor con la imagen creado: 
   - `docker run -d -p 8000:8000 --env-file=./.env --name smartia-logging-server --network mi-red smartia-logging-server`
 - Entrar al docker por temas de depuración:
   - `sudo docker exec -ti smartia-logging-server /bin/bash`
@@ -18,7 +18,18 @@
   - `sudo docker logs smartia-logger-server -t`
 - Actualizar el servicio al cual van a apuntar los logs:
   - `dokku logspout:server syslog+tls://logs3.papertrailapp.com:30612,syslog+tcp://54.207.200.52:8000`
-  
+
+# Postgres docker para pruebas.
+  ````
+  docker run -d \
+  --name mi-postgres \
+  -e POSTGRES_PASSWORD=123456789 \
+  -v /home/ubuntu/pgdata:/var/lib/postgresql/data \
+  --network mi-red \
+  -p 5432:5432 \
+  postgres
+  ````
+
 # Configurar logspout.
 - Reiniciar el contenedor de logspout:
   - `dokku logspout:stop && dokku logspout:start`
