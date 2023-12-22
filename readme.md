@@ -8,22 +8,10 @@
   - `redis-cli`
   - `llen logsMessagesQueue`, revisar en la configuración del container el nombre correcto de la cola. 
   - `llen retriesLogsMessagesQueue`, revisar en la configuración del container el nombre correcto de la cola.
-- Construir imagen: 
+- Construir imagen (**eliminar/mover el archivo .env** para que no quede dentro de la imagen): 
   - `sudo docker build -t smartia-logging-server .`
-- Ejecutar contenedor con la imagen creado(corregir, agregar env): 
-  - ````
-    docker run -d -p 8000:8000 \
-    -e DATABASE_URL=postgres://pgadmin:3GM=2023;Dig=Evo!!@ai-bot-pg.postgres.database.azure.com:5432/chatbots_prod \
-    -e PORT=8000 \
-    -e HOST=0.0.0.0 \
-    -e TIMEOUT=200 \
-    -e REDIS_URL=redis://mi-redis:6379 \
-    -e LOGS_MESSAGE_QUEUE=logsMessagesQueue \
-    -e RETRIES_MESSAGE_QUEUE=retriesLogsMessagesQueue \
-    -e TIMEOUT_RETRIES=1000 \
-    -e REDIS_COUNT=10 \
-    --name smartia-logging-server --network mi-red smartia-logging-server
-    ````
+- Ejecutar contenedor con la imagen creado (**retornar el archivo .env**): 
+  - `docker run -d -p 8000:8000 --env-file=./.env --name smartia-logging-server --network mi-red smartia-logging-server`
 - Entrar al docker por temas de depuración:
   - `sudo docker exec -ti smartia-logging-server /bin/bash`
 - Revisar logs del backend:
