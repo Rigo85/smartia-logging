@@ -1,8 +1,7 @@
 # Construir y desplegar contenedor.
-- Crear red interna:
-  - `docker network create mi-red`
+- Ejecutar lo relacionado con *smartia-logging-postgresql*.
 - Desplegar REDIS:
-  - `docker run --name mi-redis -p 6379:6379 --network mi-red -d redis` o `docker start mi-redis`
+  - `docker run --name mi-redis -p 6379:6379 --network mi-red -d redis`
 - Entrar a REDIS para revisar estado de las colas:
   - `docker exec -it mi-redis /bin/bash`
   - `redis-cli`
@@ -18,17 +17,6 @@
   - `sudo docker logs smartia-logger-server -t`
 - Actualizar el servicio al cual van a apuntar los logs:
   - `dokku logspout:server syslog+tls://logs3.papertrailapp.com:30612,syslog+tcp://54.207.200.52:8000`
-
-# Postgres docker para pruebas.
-  ````
-  docker run -d \
-  --name mi-postgres \
-  -e POSTGRES_PASSWORD=123456789 \
-  -v /home/ubuntu/pgdata:/var/lib/postgresql/data \
-  --network mi-red \
-  -p 5432:5432 \
-  postgres
-  ````
 
 # Configurar logspout.
 - Reiniciar el contenedor de logspout:
