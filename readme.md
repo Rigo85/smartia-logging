@@ -16,7 +16,7 @@
 - Revisar logs del backend:
   - `sudo docker logs smartia-logger-server -t`
 - Actualizar el servicio al cual van a apuntar los logs:
-  - `dokku logspout:server syslog+tls://logs3.papertrailapp.com:30612,syslog+tcp://54.207.200.52:8000`
+  - `dokku logspout:server syslog+tls://logs3.papertrailapp.com:30612,syslog+tcp://172.206.27.86:8000`
 
 # Configurar logspout.
 - Reiniciar el contenedor de logspout:
