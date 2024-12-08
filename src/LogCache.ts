@@ -1,5 +1,7 @@
 import { createClient, RedisClientType } from "redis";
+import * as dotenv from "dotenv";
 
+dotenv.config({path: ".env"});
 const REDIS_URL = process.env.REDIS_URL;
 
 if (!REDIS_URL) {
