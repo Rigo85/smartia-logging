@@ -18,6 +18,18 @@
 - Actualizar el servicio al cual van a apuntar los logs:
   - `dokku logspout:server syslog+tls://logs3.papertrailapp.com:30612,syslog+tcp://172.206.27.86:8000`
 
+# Desplegar en PM2
+- Instalar PM2.
+- Clonar el repo *https://github.com/Rigo85/smartia-logging.git*.
+- Moverse a *smartia-logging*.
+- Construir: `npm run build`.
+- Iniciar: `pm2 start dist/server.js --name smartia-logging --log /home/azureuser/smartia-logging.log --time`
+
+## Hacer que PM2 inicie con el sistema
+- `pm2 save`.
+- `pm2 startup`.
+- Ejecutar el comando entregado por el paso anterior.
+
 # Configurar logspout.
 - Reiniciar el contenedor de logspout:
   - `dokku logspout:stop && dokku logspout:start`
