@@ -17,6 +17,8 @@ const REDIS_COUNT = parseInt(process.env.REDIS_COUNT || "10");
 const logger = new Logger("Message Controller");
 const LOGS_MESSAGE_QUEUE = process.env.LOGS_MESSAGE_QUEUE;
 
+const lineBuffers = new Map<net.Socket, string>();
+
 export class MessageController {
 	private server: net.Server;
 
@@ -30,6 +32,12 @@ export class MessageController {
 
 			socket.on("end", () => {
 				logger.info("Client disconnected.");
+				lineBuffers.delete(socket);
+			});
+
+			socket.on("close", () => {
+				logger.info("Socket closed.");
+				lineBuffers.delete(socket);
 			});
 
 			socket.on("error", (err: Error) => {
@@ -50,19 +58,42 @@ export class MessageController {
 
 	private async sendDataToCache(data: Buffer, socket: net.Socket) {
 		try {
-			const _data = data.toString();
-			if (_data) {
-				if (_data === "PING") {
+			const chunk = data.toString("utf8");
+			if (!chunk) return;
+
+			// acumula por socket
+			const prev = lineBuffers.get(socket) ?? "";
+			let buf = prev + chunk;
+
+			const lines: string[] = [];
+			let idx: number;
+
+			// extrae líneas completas terminadas en \n
+			while ((idx = buf.indexOf("\n")) >= 0) {
+				let line = buf.slice(0, idx);
+				buf = buf.slice(idx + 1);
+				// quita CR opcional
+				if (line.endsWith("\r")) line = line.slice(0, -1);
+				if (!line) continue;
+				if (line === "PING") {
 					socket.write("PONG");
-				} else {
-					const client = await LogCache.getInstance();
-					client.lPush(LOGS_MESSAGE_QUEUE, _data);
+					continue;
 				}
+				lines.push(line);
+			}
+
+			// guarda el resto incompleto para el siguiente 'data'
+			lineBuffers.set(socket, buf);
+
+			if (lines.length) {
+				const client = await LogCache.getInstance();
+				await client.lPush(LOGS_MESSAGE_QUEUE, lines);
 			}
 		} catch (error) {
 			logger.error("sendDataToCache", error);
 		}
 	}
+
 
 	private async processRedisQueue() {
 		try {
@@ -82,53 +113,33 @@ export class MessageController {
 		}
 	}
 
-	// private parseSyslogToJSON(syslogMsg: string) {
-	// 	if (!syslogMsg) return undefined;
-	//
-	// 	try {
-	// 		const regex = /<\d+>\d+ (\S+) (\S+) (\S+) \d+ - - (.+)/;
-	// 		const match = syslogMsg.match(regex);
-	//
-	// 		/* eslint-disable @typescript-eslint/naming-convention */
-	// 		return match ? {
-	// 			Time: match[1],
-	// 			Hostname: match[2],
-	// 			AppName: match[3],
-	// 			Data: match[4],
-	// 			Source: ""
-	// 		} : undefined;
-	// 		/* eslint-enable @typescript-eslint/naming-convention */
-	// 	} catch (error) {
-	// 		logger.error("parseSyslogToJSON", error);
-	// 		return undefined;
-	// 	}
-	// }
-
 	private parseSyslogToJSON(syslogMsg: string) {
 		if (!syslogMsg) return undefined;
 
-		logger.info(syslogMsg);
-
 		try {
 			// RFC5424: <PRI>VERSION SP TIMESTAMP SP HOSTNAME SP APP-NAME SP PROCID SP MSGID SP STRUCTURED-DATA [SP MSG]
-			const re = /^<\d+>\d+\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+-\s+-\s+(.+)$/;
+			const re = /^<(?<pri>\d{1,3})>(?<ver>[1-9]\d{0,2})\s+(?<ts>(?:-|(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+\-]\d{2}:\d{2}))))\s+(?<host>\S+)\s+(?<app>\S+)\s+(?<procid>\S+)\s+(?<msgid>\S+|-)\s+(?<sd>-(?=\s|$)|\[[^\]]*\](?:\s*\[[^\]]*\])*)\s*(?<msg>.*)$/;
 			const match = syslogMsg.match(re);
 
+			if (!match || !match.groups) {
+				logger.info("=======---> Failed to parse syslog message:", syslogMsg);
+				return undefined;
+			}
+
 			/* eslint-disable @typescript-eslint/naming-convention */
-			return match ? {
-				Time: match[1],
-				Hostname: match[2],
-				AppName: match[3],
-				Data: match[5],
+			return {
+				Time: match.groups.ts,
+				Hostname: match.groups.host,
+				AppName: match.groups.app,
+				Data: match.groups.msg,
 				Source: ""
-			} : undefined;
+			};
 			/* eslint-enable @typescript-eslint/naming-convention */
 		} catch (error) {
 			logger.error("parseSyslogToJSON", error);
 			return undefined;
 		}
 	}
-
 
 	private async logToDb(messageLog: MessageLog) {
 		insertLog(messageLog.Time, messageLog.Data, messageLog.Source, messageLog.Hostname, messageLog.AppName);
