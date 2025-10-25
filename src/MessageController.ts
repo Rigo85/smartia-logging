@@ -82,27 +82,59 @@ export class MessageController {
 		}
 	}
 
+	// private parseSyslogToJSON(syslogMsg: string) {
+	// 	if (!syslogMsg) return undefined;
+	//
+	// 	try {
+	// 		const regex = /<\d+>\d+ (\S+) (\S+) (\S+) \d+ - - (.+)/;
+	// 		const match = syslogMsg.match(regex);
+	//
+	// 		/* eslint-disable @typescript-eslint/naming-convention */
+	// 		return match ? {
+	// 			Time: match[1],
+	// 			Hostname: match[2],
+	// 			AppName: match[3],
+	// 			Data: match[4],
+	// 			Source: ""
+	// 		} : undefined;
+	// 		/* eslint-enable @typescript-eslint/naming-convention */
+	// 	} catch (error) {
+	// 		logger.error("parseSyslogToJSON", error);
+	// 		return undefined;
+	// 	}
+	// }
+
 	private parseSyslogToJSON(syslogMsg: string) {
 		if (!syslogMsg) return undefined;
 
 		try {
-			const regex = /<\d+>\d+ (\S+) (\S+) (\S+) \d+ - - (.+)/;
-			const match = syslogMsg.match(regex);
+			// RFC5424: <PRI>VERSION SP TIMESTAMP SP HOSTNAME SP APP-NAME SP PROCID SP MSGID SP STRUCTURED-DATA [SP MSG]
+			// STRUCTURED-DATA puede ser "-" o una o más secciones [id params]
+			const re = /^<(?<pri>\d+)>(?<ver>\d+)\s+(?<ts>\S+)\s+(?<host>\S+)\s+(?<app>\S+)\s+(?<procid>\S+)\s+(?<msgid>\S+)\s+(?<sd>-(?:|\s*\[[^\]]*\](?:\s*\[[^\]]*\])*)|\[[^\]]*\](?:\s*\[[^\]]*\])*)\s*(?<msg>.*)$/;
+
+			const m = syslogMsg.match(re);
+			if (!m || !m.groups) return undefined;
 
 			/* eslint-disable @typescript-eslint/naming-convention */
-			return match ? {
-				Time: match[1],
-				Hostname: match[2],
-				AppName: match[3],
-				Data: match[4],
+			return {
+				// Pri: Number(m.groups.pri),
+				// Version: Number(m.groups.ver),
+				Time: m.groups.ts,                 // RFC3339
+				Hostname: m.groups.host,
+				AppName: m.groups.app,
+				// ProcId: m.groups.procid,           // puede ser "-"
+				// MsgId: m.groups.msgid,             // puede ser "-"
+				// StructuredData: m.groups.sd === "-" ? undefined : m.groups.sd,
+				Data: m.groups.msg ?? "",          // el mensaje (puede ser vacío)
 				Source: ""
-			} : undefined;
+			};
 			/* eslint-enable @typescript-eslint/naming-convention */
 		} catch (error) {
 			logger.error("parseSyslogToJSON", error);
 			return undefined;
 		}
 	}
+
 
 	private async logToDb(messageLog: MessageLog) {
 		insertLog(messageLog.Time, messageLog.Data, messageLog.Source, messageLog.Hostname, messageLog.AppName);
