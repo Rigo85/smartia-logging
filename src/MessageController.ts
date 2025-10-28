@@ -119,9 +119,16 @@ export class MessageController {
 		try {
 			// RFC5424: <PRI>VERSION SP TIMESTAMP SP HOSTNAME SP APP-NAME SP PROCID SP MSGID SP STRUCTURED-DATA [SP MSG]
 			const re = /^<(?<pri>\d{1,3})>(?<ver>[1-9]\d{0,2})\s+(?<ts>(?:-|(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+\-]\d{2}:\d{2}))))\s+(?<host>\S+)\s+(?<app>\S+)\s+(?<procid>\S+)\s+(?<msgid>\S+|-)\s+(?<sd>-(?=\s|$)|\[[^\]]*\](?:\s*\[[^\]]*\])*)\s*(?<msg>.*)$/;
-			const match = syslogMsg.match(re);
+			const reLenient = /^<(?<pri>\d{1,3})>(?<ver>[1-9]\d{0,2})\s+(?<ts>(?:-|(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+\-]\d{2}:\d{2}))))\s+(?<host>\S+)\s+(?<app>\S+)\s+(?<procid>\S+)\s+(?<msgid>\S+|-)(?:\s+(?<sd>-(?=\s|$)|\[[^\]]*\](?:\s*\[[^\]]*\])*))?\s*(?<msg>.*)$/;
 
-			if (!match || !match.groups) {
+			let match = syslogMsg.match(re);
+
+			if (!match?.groups) {
+				logger.info("No strict match, trying lenient...");
+				match = syslogMsg.match(reLenient);
+			}
+
+			if (!match?.groups) {
 				logger.info("=======---> Failed to parse syslog message:", syslogMsg);
 				return undefined;
 			}
